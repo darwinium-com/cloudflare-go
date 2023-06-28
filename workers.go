@@ -3,6 +3,7 @@ package cloudflare
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,7 +50,8 @@ type CreateWorkerParams struct {
 	Placement *Placement
 
 	// Additional script files to upload
-	AdditionalFiles []AdditionalFile
+	//
+	AdditionalFiles map[string]AdditionalFile
 }
 
 // WorkerScriptParams provides a worker script and the associated bindings.
@@ -295,7 +297,7 @@ func formatMultipartBody(params CreateWorkerParams) (string, []byte, error) {
 		CompatibilityDate  string              `json:"compatibility_date,omitempty"`
 		CompatibilityFlags []string            `json:"compatibility_flags,omitempty"`
 		Placement          *Placement          `json:"placement,omitempty"`
-		AdditionalFiles    []AdditionalFile    `json:"additional_files,omitempty"`
+		//AdditionalFiles    []AdditionalFile    `json:"additional_files,omitempty"`
 	}{
 		Bindings:           make([]workerBindingMeta, 0, len(params.Bindings)),
 		Logpush:            params.Logpush,
@@ -373,16 +375,16 @@ func formatMultipartBody(params CreateWorkerParams) (string, []byte, error) {
 	// Write additional files
 	for _, w := range params.AdditionalFiles {
 		hdr.Set("content-disposition", fmt.Sprintf(`form-data; name="%s"; filename="%[1]s"`, w.FileName))
-		// hdr.Set("content-type", "application/wasm")
 		hdr.Set("content-type", w.ScriptType)
 		pw, err = mpw.CreatePart(hdr)
 		if err != nil {
 			return "", nil, err
 		}
-		_, err = pw.Write([]byte(w.FileContent))
+		stringFileContent, err := base64.StdEncoding.DecodeString(w.FileContent)
 		if err != nil {
 			return "", nil, err
 		}
+		_, err = pw.Write([]byte(stringFileContent))
 		if err != nil {
 			return "", nil, err
 		}
